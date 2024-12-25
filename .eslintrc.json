@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "next/core-web-vitals", // Includes Next.js recommended settings
+    "eslint:recommended", // General ESLint rules
+    "plugin:@typescript-eslint/recommended" // TypeScript-specific rules
+  ],
+  "plugins": ["@typescript-eslint"],
+  "rules": {
+    "no-unused-vars": "off", // Disable base ESLint rule
+    "@typescript-eslint/no-unused-vars": [
+      "warn", // Set to "warn" or "off" as needed
+      {
+        "argsIgnorePattern": "^_", // Ignore function arguments starting with "_"
+        "varsIgnorePattern": "^_" // Ignore variables starting with "_"
+      }
+    ]
+  }
+}
