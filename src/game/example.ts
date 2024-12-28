@@ -12,7 +12,7 @@ let vbo:WebGLBuffer|undefined = undefined
 let vao:WebGLVertexArrayObject = undefined
 let eib:WebGLBuffer|undefined = undefined
 
-let shaderProg = undefined
+let shaderProg:WebGLProgram = undefined
 
 
 let transform0:Transform
@@ -49,6 +49,9 @@ void main() {
     }
 }
 `
+
+
+
 const TriVertices = new Float32Array([
     // Position      // Color
     0.0,  0.5,       1.0, 0.0, 0.0,  // Top vertex (Red)
@@ -93,6 +96,35 @@ let outlineEIB:WebGLBuffer|undefined = undefined
 
 let prespMat:Matrix4x4_f32
 let camera:Camera
+
+//skybox ---------------------------------------
+const skyboxVertShaderCode = `#version 300 es
+in vec3 vpos;
+in vec3 vcol;
+uniform  mat4 mvp;
+out vec3 fcol;
+
+void main() {
+    gl_Position = mvp * vec4(vpos, 1.0);
+    fcol = vcol;
+}
+`
+
+const skyboxFragShaderCode = `#version 300 es
+precision mediump float;
+in vec3 fcol;
+out vec4 fragColor;
+
+void main() {
+    fragColor = vec4(fcol, 1.0);
+}
+`
+
+let skyboxProgram:WebGLProgram|undefined = undefined
+
+let skyboxvbo:WebGLBuffer|undefined = undefined
+let skyboxvao:WebGLVertexArrayObject|undefined = undefined
+let skyboxeib:WebGLBuffer|undefined = undefined
 
 //routines ---
 function compileShader(type:GLenum, sourceCode:string){
@@ -184,8 +216,12 @@ export function initExample(_gl:WebGL2RenderingContext){
     transform5.scale.multiplyS_self(0.5)
 
     camera = new Camera()
+    camera.transform.position.addV_self(Vec3.Defined(0,0,-10))
+    camera.transform.rotation.rotate_self(Vec3.Up(), Math.PI)
     // camera.transform.scale.multiplyS_self(4)
     // camera.transform.rotation.rotate_self(Vec3.Up(), Math.PI)
+
+    initSkybox()
 }
 
 export function deinitExample(){
@@ -200,10 +236,7 @@ const rRotVel = 2
 let tRotPos = 1
 
 
-
-
-
-let viewAngle = Vec2.Defined(0,0)
+let viewAngle = Vec2.Defined(Math.PI,0)
 
 function runCamera(game:Game, deltatime:number){ 
 
@@ -279,6 +312,49 @@ function drawObj(transform:Transform, prespMat:Matrix4x4_f32, viewMat:Matrix4x4_
     gl.drawElements(gl.LINES, cubeOutlineIndex.length, gl.UNSIGNED_SHORT, 0);
 }
 
+function initSkybox(){
+    const vertexShader = compileShader(gl.VERTEX_SHADER, vertShaderCode);
+    const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragShaderCode);
+
+    skyboxProgram = gl.createProgram();
+    gl.attachShader(skyboxProgram, vertexShader);
+    gl.attachShader(skyboxProgram, fragmentShader);
+    gl.linkProgram(skyboxProgram);
+
+    if (!gl.getProgramParameter(skyboxProgram, gl.LINK_STATUS)) {
+        console.error('Program linking error:', gl.getProgramInfoLog(skyboxProgram));
+        gl.deleteProgram(skyboxProgram);
+        throw new Error('Program linking failed');
+    }
+}
+
+function renderSkybox(p:Matrix4x4_f32){
+    gl.useProgram(skyboxProgram)
+    
+    const mvpLocation = gl.getUniformLocation(skyboxProgram, "mvp")
+    
+    const transform = Transform.Identity()
+    transform.rotation = camera.transform.rotation.inverse()
+    console.log(transform)
+    
+    let viewMat = transformToViewMatrix(transform)
+    // viewMat = Matrix4x4_f32.Identity()
+    console.log(p)
+    let mvpMat = p.multiplyM(viewMat)
+
+    gl.bindVertexArray(vao)
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, eib)
+    gl.drawElements(gl.TRIANGLES, cubeTriIndex.length, gl.UNSIGNED_BYTE, 0);
+
+
+    gl.uniformMatrix4fv(mvpLocation, true, mvpMat.mat)
+
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
+    gl.bindVertexArray(null)
+    gl.useProgram(null)
+}
+
 export function renderExample(game: Game, deltaTime:number){
     game.mouseInput.pollInputs()
 
@@ -288,14 +364,21 @@ export function renderExample(game: Game, deltaTime:number){
     // transform.rotation.rotate(Vec3.Up(), 2*Math.PI * rRotVel *  deltaTime)
     tRotPos += 2*Math.PI * 0.5 * deltaTime
     transform0.position = Vec3.Defined( Math.cos( tRotPos), Math.sin(tRotPos), 0).multiplyS_self(0.5)
+
+    prespMat = perspectiveMatrix(Math.PI / 4 , 1.0, 0.01, 1000.0)
+
+    gl.cullFace(gl.FRONT)
+    gl.depthMask(false)
+    renderSkybox(prespMat)
     
+    gl.cullFace(gl.BACK)
+    gl.depthMask(true)
     gl.useProgram(shaderProg)
     
     
     const mvpLocation = gl.getUniformLocation(shaderProg, "mvp")
     const isBlackLocation = gl.getUniformLocation(shaderProg, "isBlack")
 
-    prespMat = perspectiveMatrix(Math.PI / 4 , 1.0, 0.01, 1000.0)
     const viewMat = transformToViewMatrix(camera.transform.inverse())
     
     

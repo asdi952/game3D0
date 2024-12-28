@@ -165,7 +165,7 @@ export class Quaternion{
     inverse(){
         const q = this.conjugate()
         const mag = this.magnitude()
-        // q.multiplyNum_self(1/mag)
+        q.multiplyNum_self(1/mag)
         return q
     }
     inverse_self(){
